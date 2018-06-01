@@ -1,3 +1,4 @@
+import scapy
 import collections
 
 class hdrtbl(object):
@@ -87,6 +88,7 @@ class hdrtbl(object):
     if i < len(this.stattbl):
       return this.stattbl[i]
     i -= len(this.stattbl)
+    #print i, len(this.dyntbl), this.dynsz(), this.dyntbl
     assert i < len(this.dyntbl)
     return this.dyntbl[i]
 
@@ -471,10 +473,30 @@ def strencode(bs, ba):
   bs.ar += bytearray(ba)
   bs.N = 8
 
-def hdrencode(bs, k, v):
+def hdrencode(bs, k, v, hdrtbl):
+  if (k,v) in hdrtbl.stattbl:
+    idx = hdrtbl.stattbl.index((k,v))
+    bs.ar.append(1<<7)
+    bs.N = 7
+    intencode(bs, idx+1)
+    bs.N = 8
+    return
+  if (k,"") in hdrtbl.stattbl:
+    idx = hdrtbl.stattbl.index((k,""))
+    bs.ar.append(0)
+    bs.N = 4
+    intencode(bs, idx+1)
+    strencode(bs, v)
+    return
   bs.ar.append(1<<4)
   strencode(bs, k)
   strencode(bs, v)
+
+def encodehdrs(l, hdrtbl):
+  bs = bitstr(0, hdrtbl)
+  for k,v in l:
+    hdrencode(bs, k, v, hdrtbl)
+  return bytes(bs.ar)
 
 def hdrdecode(bs):
   hi = (bs.ar[bs.readidx]>>7)
@@ -514,45 +536,11 @@ def hdrdecode(bs):
       elif lohi == 1:
         bs.N = 5
         i = intdecode(bs)
+        #print "Update maxsz", i
         bs.maxsz = i
         bs.hdrtbl.evict(bs.maxsz)
       else:
         assert False
-      
-bs = bitstr(0, hdrtbl())
-bs.ar.append((1<<7) | (1<<6) | (1<<5))
-bs.N = 5
-intencode(bs, 10)
-assert bs.ar == b"\xea"
-bs.N = 5
-assert intdecode(bs) == 10
-
-bs = bitstr(0, hdrtbl())
-bs.ar.append((1<<7) | (1<<6) | (1<<5))
-bs.N = 5
-intencode(bs, 1337)
-assert bs.ar == b"\xff\x9a\x0a"
-bs.N = 5
-assert intdecode(bs) == 1337
-
-for n in range(0,10000,100):
-  s = n*"Foo Bar Baz Quux"
-  for m in range(10):
-    bs = bitstr(0, hdrtbl())
-    for k in range(m):
-      strencode(bs, s)
-    for k in range(m):
-      assert strdecode(bs) == s
-
-
-assert huffmandec(huffmanenc(b"")) == b""
-assert huffmandec(huffmanenc(b"a")) == b"a"
-assert huffmandec(huffmanenc(b"Foo")) == b"Foo"
-assert huffmandec(b"\xf1\xe3\xc2\xe5\xf2\x3a\x6b\xa0\xab\x90\xf4\xff") == "www.example.com"
-
-bs = bitstr(0, hdrtbl())
-hdrencode(bs, "Foo", "Bar")
-assert hdrdecode(bs) == ("Foo", "Bar")
 
 def nohuffmantest():
   hdr1 = b"\x82\x86\x84\x41\x0f\x77\x77\x77\x2e\x65\x78\x61\x6d\x70\x6c\x65\x2e\x63\x6f\x6d"
@@ -743,8 +731,38 @@ def huffmanresp():
   assert bs.hdrtbl.dynsz() == 215
 
 
-nohuffmantest()
-huffmantest()
 
-nohuffmanresp()
-huffmanresp()
+if __name__ == '__main__':      
+  bs = bitstr(0, hdrtbl())
+  bs.ar.append((1<<7) | (1<<6) | (1<<5))
+  bs.N = 5
+  intencode(bs, 10)
+  assert bs.ar == b"\xea"
+  bs.N = 5
+  assert intdecode(bs) == 10
+  bs = bitstr(0, hdrtbl())
+  bs.ar.append((1<<7) | (1<<6) | (1<<5))
+  bs.N = 5
+  intencode(bs, 1337)
+  assert bs.ar == b"\xff\x9a\x0a"
+  bs.N = 5
+  assert intdecode(bs) == 1337
+  for n in range(0,10000,100):
+    s = n*"Foo Bar Baz Quux"
+    for m in range(10):
+      bs = bitstr(0, hdrtbl())
+      for k in range(m):
+        strencode(bs, s)
+      for k in range(m):
+        assert strdecode(bs) == s
+  assert huffmandec(huffmanenc(b"")) == b""
+  assert huffmandec(huffmanenc(b"a")) == b"a"
+  assert huffmandec(huffmanenc(b"Foo")) == b"Foo"
+  assert huffmandec(b"\xf1\xe3\xc2\xe5\xf2\x3a\x6b\xa0\xab\x90\xf4\xff") == "www.example.com"
+  bs = bitstr(0, hdrtbl())
+  hdrencode(bs, "Foo", "Bar")
+  assert hdrdecode(bs) == ("Foo", "Bar")
+  nohuffmantest()
+  huffmantest()
+  nohuffmanresp()
+  huffmanresp()
