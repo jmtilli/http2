@@ -634,5 +634,117 @@ def huffmantest():
   assert bs.hdrtbl.dyntbl[2] == (':authority', 'www.example.com')
   assert bs.hdrtbl.dynsz() == 164
 
+def nohuffmanresp():
+  hdr1 = b"\x48\x03\x33\x30\x32\x58\x07\x70\x72\x69\x76\x61\x74\x65\x61\x1d\x4d\x6f\x6e\x2c\x20\x32\x31\x20\x4f\x63\x74\x20\x32\x30\x31\x33\x20\x32\x30\x3a\x31\x33\x3a\x32\x31\x20\x47\x4d\x54\x6e\x17\x68\x74\x74\x70\x73\x3a\x2f\x2f\x77\x77\x77\x2e\x65\x78\x61\x6d\x70\x6c\x65\x2e\x63\x6f\x6d"
+  bs = bitstr(256, hdrtbl())
+  bs.ar = bytearray(hdr1)
+  hdrs = []
+  expected = [(':status', '302'), ('cache-control', 'private'), ('date', 'Mon, 21 Oct 2013 20:13:21 GMT'), ('location', 'https://www.example.com')]
+  while bs.readidx < len(bs.ar):
+    hdrs.append(hdrdecode(bs))
+  assert hdrs == expected
+  assert len(bs.hdrtbl.dyntbl) == 4
+  assert bs.hdrtbl.dyntbl[0] == ('location', 'https://www.example.com')
+  assert bs.hdrtbl.dyntbl[1] == ('date', 'Mon, 21 Oct 2013 20:13:21 GMT')
+  assert bs.hdrtbl.dyntbl[2] == ('cache-control', 'private')
+  assert bs.hdrtbl.dyntbl[3] == (':status', '302')
+  assert bs.hdrtbl.dynsz() == 222
+  #
+  hdr2 = b"\x48\x03\x33\x30\x37\xc1\xc0\xbf"
+  bs = bitstr(256, bs.hdrtbl)
+  bs.ar = bytearray(hdr2)
+  hdrs = []
+  expected = [(':status', '307'), ('cache-control', 'private'), ('date', 'Mon, 21 Oct 2013 20:13:21 GMT'), ('location', 'https://www.example.com')]
+  while bs.readidx < len(bs.ar):
+    hdrs.append(hdrdecode(bs))
+  assert hdrs == expected
+  assert len(bs.hdrtbl.dyntbl) == 4
+  assert bs.hdrtbl.dyntbl[0] == (':status', '307')
+  assert bs.hdrtbl.dyntbl[1] == ('location', 'https://www.example.com')
+  assert bs.hdrtbl.dyntbl[2] == ('date', 'Mon, 21 Oct 2013 20:13:21 GMT')
+  assert bs.hdrtbl.dyntbl[3] == ('cache-control', 'private')
+  assert bs.hdrtbl.dynsz() == 222
+  #
+  hdr3 = b"\x88\xc1\x61\x1d\x4d\x6f\x6e\x2c\x20\x32\x31\x20\x4f\x63\x74\x20\x32\x30\x31\x33\x20\x32\x30\x3a\x31\x33\x3a\x32\x32\x20\x47\x4d\x54\xc0\x5a\x04\x67\x7a\x69\x70\x77\x38\x66\x6f\x6f\x3d\x41\x53\x44\x4a\x4b\x48\x51\x4b\x42\x5a\x58\x4f\x51\x57\x45\x4f\x50\x49\x55\x41\x58\x51\x57\x45\x4f\x49\x55\x3b\x20\x6d\x61\x78\x2d\x61\x67\x65\x3d\x33\x36\x30\x30\x3b\x20\x76\x65\x72\x73\x69\x6f\x6e\x3d\x31"
+  bs = bitstr(256, bs.hdrtbl)
+  bs.ar = bytearray(hdr3)
+  hdrs = []
+  expected = [
+    (':status', '200'),
+    ('cache-control', 'private'),
+    ('date', 'Mon, 21 Oct 2013 20:13:22 GMT'),
+    ('location', 'https://www.example.com'),
+    ('content-encoding', 'gzip'),
+    ('set-cookie', 'foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1'),
+  ]
+  while bs.readidx < len(bs.ar):
+    hdrs.append(hdrdecode(bs))
+  assert hdrs == expected
+  assert len(bs.hdrtbl.dyntbl) == 3
+  assert bs.hdrtbl.dyntbl[0] == ('set-cookie', 'foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1')
+  assert bs.hdrtbl.dyntbl[1] == ('content-encoding' ,'gzip')
+  assert bs.hdrtbl.dyntbl[2] == ('date', 'Mon, 21 Oct 2013 20:13:22 GMT')
+  assert bs.hdrtbl.dynsz() == 215
+
+
+def huffmanresp():
+  #hdr1 = b"\x48\x03\x33\x30\x32\x58\x07\x70\x72\x69\x76\x61\x74\x65\x61\x1d\x4d\x6f\x6e\x2c\x20\x32\x31\x20\x4f\x63\x74\x20\x32\x30\x31\x33\x20\x32\x30\x3a\x31\x33\x3a\x32\x31\x20\x47\x4d\x54\x6e\x17\x68\x74\x74\x70\x73\x3a\x2f\x2f\x77\x77\x77\x2e\x65\x78\x61\x6d\x70\x6c\x65\x2e\x63\x6f\x6d"
+  hdr1 = b"\x48\x82\x64\x02\x58\x85\xae\xc3\x77\x1a\x4b\x61\x96\xd0\x7a\xbe\x94\x10\x54\xd4\x44\xa8\x20\x05\x95\x04\x0b\x81\x66\xe0\x82\xa6\x2d\x1b\xff\x6e\x91\x9d\x29\xad\x17\x18\x63\xc7\x8f\x0b\x97\xc8\xe9\xae\x82\xae\x43\xd3"
+  bs = bitstr(256, hdrtbl())
+  bs.ar = bytearray(hdr1)
+  hdrs = []
+  expected = [(':status', '302'), ('cache-control', 'private'), ('date', 'Mon, 21 Oct 2013 20:13:21 GMT'), ('location', 'https://www.example.com')]
+  while bs.readidx < len(bs.ar):
+    hdrs.append(hdrdecode(bs))
+  assert hdrs == expected
+  assert len(bs.hdrtbl.dyntbl) == 4
+  assert bs.hdrtbl.dyntbl[0] == ('location', 'https://www.example.com')
+  assert bs.hdrtbl.dyntbl[1] == ('date', 'Mon, 21 Oct 2013 20:13:21 GMT')
+  assert bs.hdrtbl.dyntbl[2] == ('cache-control', 'private')
+  assert bs.hdrtbl.dyntbl[3] == (':status', '302')
+  assert bs.hdrtbl.dynsz() == 222
+  #
+  #hdr2 = b"\x48\x03\x33\x30\x37\xc1\xc0\xbf"
+  hdr2 = b"\x48\x83\x64\x0e\xff\xc1\xc0\xbf"
+  bs = bitstr(256, bs.hdrtbl)
+  bs.ar = bytearray(hdr2)
+  hdrs = []
+  expected = [(':status', '307'), ('cache-control', 'private'), ('date', 'Mon, 21 Oct 2013 20:13:21 GMT'), ('location', 'https://www.example.com')]
+  while bs.readidx < len(bs.ar):
+    hdrs.append(hdrdecode(bs))
+  assert hdrs == expected
+  assert len(bs.hdrtbl.dyntbl) == 4
+  assert bs.hdrtbl.dyntbl[0] == (':status', '307')
+  assert bs.hdrtbl.dyntbl[1] == ('location', 'https://www.example.com')
+  assert bs.hdrtbl.dyntbl[2] == ('date', 'Mon, 21 Oct 2013 20:13:21 GMT')
+  assert bs.hdrtbl.dyntbl[3] == ('cache-control', 'private')
+  assert bs.hdrtbl.dynsz() == 222
+  #
+  #hdr3 = b"\x88\xc1\x61\x1d\x4d\x6f\x6e\x2c\x20\x32\x31\x20\x4f\x63\x74\x20\x32\x30\x31\x33\x20\x32\x30\x3a\x31\x33\x3a\x32\x32\x20\x47\x4d\x54\xc0\x5a\x04\x67\x7a\x69\x70\x77\x38\x66\x6f\x6f\x3d\x41\x53\x44\x4a\x4b\x48\x51\x4b\x42\x5a\x58\x4f\x51\x57\x45\x4f\x50\x49\x55\x41\x58\x51\x57\x45\x4f\x49\x55\x3b\x20\x6d\x61\x78\x2d\x61\x67\x65\x3d\x33\x36\x30\x30\x3b\x20\x76\x65\x72\x73\x69\x6f\x6e\x3d\x31"
+  hdr3 = b"\x88\xc1\x61\x96\xd0\x7a\xbe\x94\x10\x54\xd4\x44\xa8\x20\x05\x95\x04\x0b\x81\x66\xe0\x84\xa6\x2d\x1b\xff\xc0\x5a\x83\x9b\xd9\xab\x77\xad\x94\xe7\x82\x1d\xd7\xf2\xe6\xc7\xb3\x35\xdf\xdf\xcd\x5b\x39\x60\xd5\xaf\x27\x08\x7f\x36\x72\xc1\xab\x27\x0f\xb5\x29\x1f\x95\x87\x31\x60\x65\xc0\x03\xed\x4e\xe5\xb1\x06\x3d\x50\x07"
+  bs = bitstr(256, bs.hdrtbl)
+  bs.ar = bytearray(hdr3)
+  hdrs = []
+  expected = [
+    (':status', '200'),
+    ('cache-control', 'private'),
+    ('date', 'Mon, 21 Oct 2013 20:13:22 GMT'),
+    ('location', 'https://www.example.com'),
+    ('content-encoding', 'gzip'),
+    ('set-cookie', 'foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1'),
+  ]
+  while bs.readidx < len(bs.ar):
+    hdrs.append(hdrdecode(bs))
+  assert hdrs == expected
+  assert len(bs.hdrtbl.dyntbl) == 3
+  assert bs.hdrtbl.dyntbl[0] == ('set-cookie', 'foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1')
+  assert bs.hdrtbl.dyntbl[1] == ('content-encoding' ,'gzip')
+  assert bs.hdrtbl.dyntbl[2] == ('date', 'Mon, 21 Oct 2013 20:13:22 GMT')
+  assert bs.hdrtbl.dynsz() == 215
+
+
 nohuffmantest()
 huffmantest()
+
+nohuffmanresp()
+huffmanresp()
