@@ -28,6 +28,7 @@ int read_wrap(void)
   int err;
   char buf[1025];
   printf("read_wrap\n");
+  ERR_clear_error();
   err = SSL_read(ssl, buf, sizeof(buf) - 1);
   if (err > 0)
   {
@@ -66,6 +67,7 @@ void write_wrap(void)
   }
   want_read_iswrite = 0;
   printf("write_wrap towr %d\n", to_write);
+  ERR_clear_error();
   ret = SSL_write(ssl, writebuf, to_write);
   printf("write_wrap ret %d\n", ret);
   if (ret > 0)
