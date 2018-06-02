@@ -263,16 +263,21 @@ def encode_data(stream_id, data, end_stream, maxsz):
     else:
       f.type = 0x0
     f.flags = 0
+    if pad_length:
+      pad_total = pad_length + 1
+    else:
+      pad_total = 0
+    assert pad_total < maxsz
     #end_data = (len(data) <= maxsz - 4)
-    end_data = (len(data) <= maxsz)
+    end_data = (len(data) <= maxsz - pad_total)
     if end_data:
       cur_data = data
       data = b''
     else:
       #cur_data = data[:maxsz-4]
       #data = data[maxsz-4:]
-      cur_data = data[:maxsz]
-      data = data[maxsz:]
+      cur_data = data[ : maxsz - pad_total]
+      data = data[maxsz - pad_total : ]
     if end_stream and data == b'':
       f.flags |= 0x1
     if pad_length and first:
