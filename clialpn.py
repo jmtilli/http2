@@ -2,6 +2,7 @@ import socket
 import ssl
 import hpack
 import http2
+import time
 
 print ssl.HAS_ALPN
 
@@ -35,7 +36,8 @@ settings = http2.encode_frame(http2.encode_settings([
   http2.setting_header_table_size(8192),
   http2.setting_enable_push(1),
   http2.setting_max_concurrent_streams(10),
-  http2.setting_initial_window_size(65535),
+  #http2.setting_initial_window_size(65535),
+  http2.setting_initial_window_size(1),
   http2.setting_max_frame_size(16384),
   http2.setting_max_header_list_size(65536),
 ], 0))
@@ -110,9 +112,10 @@ while True:
     print "DATA", a.data[:80]
     if a.flags & 0x1:
       break
+    time.sleep(1)
     print "Sending window update for stream and connection"
-    conn.sendall(http2.encode_frame(http2.encode_window_update(a.stream_id, 65535)))
-    conn.sendall(http2.encode_frame(http2.encode_window_update(0, 65535)))
+    conn.sendall(http2.encode_frame(http2.encode_window_update(a.stream_id, len(a.data))))
+    conn.sendall(http2.encode_frame(http2.encode_window_update(0, len(a.data))))
   elif type(a) == http2.frame_rst_stream:
     print "RST", a.stream_id, a.error_code
   else:

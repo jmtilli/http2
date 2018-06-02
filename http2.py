@@ -31,6 +31,13 @@ class frame_settings(frame):
     this.stream_id = 0x0
     this.settings = list()
 
+class frame_window_update(frame):
+  def __init__(this):
+    this.type = 0x8
+    this.flags = None
+    this.stream_id = None
+    this.increment = None
+
 class frame_headers(frame):
   def __init__(this):
     this.type = 0x1
@@ -160,6 +167,16 @@ def decode_rst_stream(bs):
   f.error_code = (ord(pay[0])<<24) | (ord(pay[1])<<16) | (ord(pay[2])<<8) | (ord(pay[3]))
   return f
 
+def decode_window_update(bs):
+  fraw = decode_frame(bs)
+  f = frame_window_update()
+  f.flags = fraw.flags
+  f.stream_id = fraw.stream_id
+  pay = fraw.payload
+  assert len(pay) == 4
+  f.increment = ((ord(pay[0])&0x7f)<<24) | (ord(pay[1])<<16) | (ord(pay[2])<<8) | (ord(pay[3]))
+  return f
+
 def decode_data(bs):
   fraw = decode_frame(bs)
   f = frame_data()
@@ -231,6 +248,8 @@ def decode_any(s):
     return decode_settings(s)
   if f.type == 5:
     return decode_push_promise(s)
+  if f.type == 8:
+    return decode_window_update(s)
   
 
 def encode_data(stream_id, data, end_stream, maxsz):
@@ -244,13 +263,16 @@ def encode_data(stream_id, data, end_stream, maxsz):
     else:
       f.type = 0x0
     f.flags = 0
-    end_data = (len(data) <= maxsz - 4)
+    #end_data = (len(data) <= maxsz - 4)
+    end_data = (len(data) <= maxsz)
     if end_data:
       cur_data = data
       data = b''
     else:
-      cur_data = data[:maxsz-4]
-      data = data[maxsz-4:]
+      #cur_data = data[:maxsz-4]
+      #data = data[maxsz-4:]
+      cur_data = data[:maxsz]
+      data = data[maxsz:]
     if end_stream and data == b'':
       f.flags |= 0x1
     if pad_length and first:
