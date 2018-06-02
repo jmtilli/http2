@@ -130,7 +130,7 @@ int main(int argc, char **argv)
 
   sin.sin_family = AF_INET;
   sin.sin_port = htons(443);
-  memcpy(&sin.sin_addr, gethostbyname("www.google.fi")->h_addr_list[0], 4);
+  memcpy(&sin.sin_addr, gethostbyname("www.hs.fi")->h_addr_list[0], 4);
 
   printf("%s\n", inet_ntoa(sin.sin_addr));
 
@@ -147,6 +147,7 @@ int main(int argc, char **argv)
   SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION | SSL_OP_NO_SSLv3 | SSL_OP_NO_SSLv2);
   SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
   ssl = SSL_new(ctx);
+  SSL_set_tlsext_host_name(ssl, "www.hs.fi");
   SSL_set_fd(ssl, connfd);
 
   //const char* const PREFERRED_CIPHERS = "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4";
@@ -185,7 +186,7 @@ int main(int argc, char **argv)
 
   printf("Got here\n");
 
-  request = "GET / HTTP/1.1\r\nHost: www.google.fi\r\n\r\n";
+  request = "GET / HTTP/1.1\r\nHost: www.hs.fi\r\n\r\n";
   to_write = strlen(request);
   memcpy(writebuf, request, to_write);
   want_write = 1;
