@@ -760,7 +760,7 @@ if __name__ == '__main__':
   assert huffmandec(huffmanenc(b"Foo")) == b"Foo"
   assert huffmandec(b"\xf1\xe3\xc2\xe5\xf2\x3a\x6b\xa0\xab\x90\xf4\xff") == "www.example.com"
   bs = bitstr(0, hdrtbl())
-  hdrencode(bs, "Foo", "Bar")
+  hdrencode(bs, "Foo", "Bar", bs.hdrtbl)
   assert hdrdecode(bs) == ("Foo", "Bar")
   nohuffmantest()
   huffmantest()
