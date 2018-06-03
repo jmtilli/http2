@@ -1,5 +1,17 @@
 import hpack
 
+class Data(object):
+  def __init__(this):
+    this.data = bytearray(b'')
+  def push(this, d):
+    this.data += d
+  def empty(this):
+    return len(this.data) == 0
+  def pop_left(this, l):
+    result = this.data[0:l]
+    del this.data[0:l]
+    return result
+
 def recvall(s,l):
   b = bytearray(b'')
   while len(b) < l:
@@ -270,47 +282,40 @@ def decode_any(s):
     return decode_continuation(s)
   
 
-def encode_data(stream_id, data, end_stream, maxsz):
+def encode_next_data(stream_id, databuf, end_stream, maxsz):
   fs = []
   pad_length = 0
-  first = True
-  while len(data) > 0:
+  while not databuf.empty():
     f = frame()
-    if first:
-      f.type = 0x0
-    else:
-      f.type = 0x0
+    f.type = 0x0
     f.flags = 0
     if pad_length:
       pad_total = pad_length + 1
     else:
       pad_total = 0
     assert pad_total < maxsz
-    #end_data = (len(data) <= maxsz - 4)
-    end_data = (len(data) <= maxsz - pad_total)
-    if end_data:
-      cur_data = data
-      data = b''
-    else:
-      #cur_data = data[:maxsz-4]
-      #data = data[maxsz-4:]
-      cur_data = data[ : maxsz - pad_total]
-      data = data[maxsz - pad_total : ]
-    if end_stream and data == b'':
+    cur_data = databuf.pop_left(maxsz - pad_total)
+    end_data = databuf.empty()
+    if end_stream and end_data:
       f.flags |= 0x1
-    if pad_length and first:
+    if pad_length:
       f.flags |= 0x8
     f.stream_id = stream_id
     s = bytearray(b'')
-    if first and pad_length:
+    if pad_length:
       s += pad_length
     s += cur_data
-    if first:
-      s += pad_length * b"\0"
+    s += pad_length * b"\0"
     f.payload = bytes(s)
-    fs.append(f)
-    if first:
-      first = False
+    return f
+
+def encode_data(stream_id, data, end_stream, maxsz):
+  fs = []
+  pad_length = 0
+  databuf = Data()
+  databuf.push(data)
+  while not databuf.empty():
+    fs.append(encode_next_data(stream_id, databuf, end_stream, maxsz))
   return fs
 
 def encode_headers(stream_id, exclusive, dependency, weight, headers, end_stream, priority, maxsz):
@@ -519,9 +524,15 @@ if __name__ == '__main__':
   assert type(settings2.settings[3]) == setting_max_frame_size
   assert settings2.settings[3].val == 16384
   
-  hdrs = hpack.encodehdrs([('Foo', '1'), ('Bar', '2'), ('Baz', '3')])
+  hdrs = hpack.encodehdrs([('Foo', '1'), ('Bar', '2'), ('Baz', '3')], hpack.hdrtbl())
   print(repr(hdrs))
   pushpromises = encode_push_promise(1, 2, hdrs, 16384)
   print(repr(pushpromises[0].payload))
   ping = encode_ping(8*b"\0", 0)
   print(repr(ping.payload))
+  #
+  data = Data()
+  data.push(b'foobar')
+  print data.pop_left(3)
+  print data.pop_left(3)
+  print data.pop_left(3)

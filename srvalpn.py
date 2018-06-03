@@ -14,15 +14,15 @@ def drain():
   global window_stream
   global conn
   global global_stream_id
-  while tosends:
-    if len(tosends[0].payload) > window_conn:
-      break
-    if len(tosends[0].payload) > window_stream[tosends[0].stream_id]:
-      break
-    conn.sendall(http2.encode_frame(tosends[0]))
-    window_conn -= len(tosends[0].payload)
-    window_stream[tosends[0].stream_id] -= len(tosends[0].payload)
-    del tosends[0]
+  global tosend_by_stream
+  for stream_id in tosend_by_stream:
+    tosend = tosend_by_stream[stream_id]
+    while not tosend.empty() and window_conn and window_stream[stream_id]:
+      max_cur_frame = min(max_frame, window_conn, window_stream[stream_id])
+      datablock = http2.encode_next_data(stream_id, tosend, 1, max_cur_frame)
+      conn.sendall(http2.encode_frame(datablock))
+      window_conn -= len(datablock.payload)
+      window_stream[stream_id] -= len(datablock.payload)
 
 while True:
   context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
@@ -37,7 +37,10 @@ while True:
   
   tcp_conn = sock.accept()[0]
   #
-  tosends = []
+  #tosend = http2.Data()
+  tosend_by_stream = {}
+  #
+  max_frame = 16384
   #
   initial_window = 65535
   window_conn = 65535
@@ -76,6 +79,9 @@ while True:
         if type(setting) == http2.setting_header_table_size:
           hdrsz = setting.val
           print "Using header size", hdrsz
+        if type(setting) == http2.setting_max_frame_size:
+          max_frame = setting.val
+          print "Using frame size", max_frame
         if type(setting) == http2.setting_initial_window_size:
           newval = setting.val
           diff = newval - initial_window
@@ -139,10 +145,14 @@ while True:
       ]
       hdrstr = hpack.encodehdrs(hdrs, enctbl)
       #for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 16384): # FIXME sz
-      for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 1): # FIXME sz
+      #for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 1): # FIXME sz
+      for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, max_frame):
         conn.sendall(http2.encode_frame(frame))
       #tosends = http2.encode_data(a.stream_id, 'Foo', 1, 16384) # FIXME sz
-      tosends = http2.encode_data(a.stream_id, 'Foo', 1, 1) # FIXME sz
+      #tosends = http2.encode_data(a.stream_id, 'Foo', 1, 1) # FIXME sz
+      tosend_by_stream[a.stream_id] = http2.Data()
+      tosend_by_stream[a.stream_id].push('Foo')
+      #tosends = http2.encode_data(a.stream_id, 'Foo', 1, max_frame)
       print "Draing"
       drain()
       print "Drained"

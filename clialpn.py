@@ -36,8 +36,8 @@ settings = http2.encode_frame(http2.encode_settings([
   http2.setting_header_table_size(8192),
   http2.setting_enable_push(1),
   http2.setting_max_concurrent_streams(10),
-  #http2.setting_initial_window_size(65535),
-  http2.setting_initial_window_size(1),
+  http2.setting_initial_window_size(65535),
+  #http2.setting_initial_window_size(1),
   http2.setting_max_frame_size(16384),
   http2.setting_max_header_list_size(65536),
 ], 0))
@@ -50,9 +50,12 @@ if type(settings_srv) != http2.frame_settings:
   assert False
 
 hdrsz = 4096
+max_frame = 16384
 for setting in settings_srv.settings:
   if type(setting) == http2.setting_header_table_size:
     hdrsz = setting.val
+  if type(setting) == http2.setting_max_frame_size:
+    max_frame = setting.val
 print "Using header size", hdrsz
 
 print "1", repr(b)
@@ -89,7 +92,7 @@ hdrs = hpack.encodehdrs([
 end_stream = 1
 stream_id = 1
 #conn.sendall(http2.encode_frame(http2.encode_headers(stream_id, 0, 0, 0, hdrs, end_stream, 0, 16384)[0]))
-for frame in http2.encode_headers(stream_id, 0, 0, 0, hdrs, end_stream, 0, 1):
+for frame in http2.encode_headers(stream_id, 0, 0, 0, hdrs, end_stream, 0, max_frame):
   conn.sendall(http2.encode_frame(frame))
 #conn.sendall(http2.encode_frame(http2.encode_window_update(stream_id, 65535)))
 #conn.sendall(http2.encode_frame(http2.encode_window_update(0, 65535)))
@@ -102,6 +105,14 @@ while True:
   a = http2.decode_any(b)
   if type(a) == http2.frame_push_promise:
     pass
+  elif type(a) == http2.frame_settings:
+    for setting in a.settings:
+      if type(setting) == http2.setting_header_table_size:
+        hdrsz = setting.val
+        print "Using header size", hdrsz
+      if type(setting) == http2.setting_max_frame_size:
+        max_frame = setting.val
+        print "Using frame size", max_frame
   elif type(a) == http2.frame_headers:
     print "---", a.stream_id
     bs = hpack.bitstr(hdrsz, hdrtbl)
