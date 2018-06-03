@@ -105,6 +105,11 @@ while True:
       print "---", a.stream_id
       bs = hpack.bitstr(hdrsz, hdrtbl)
       bs.ar = bytearray(a.headers)
+      while a.flags & 0x4 != 0x4:
+        b = http2.recv_frame(conn)
+        a = http2.decode_any(b)
+        assert type(a) == http2.frame_continuation
+        bs.ar += a.headers
       print len(bs.ar)
       d = {}
       print repr(bs.ar)
@@ -130,9 +135,11 @@ while True:
         assert False
       hdrs = [
         (':status', '200'),
+        ('server', 'custom prototype'),
       ]
       hdrstr = hpack.encodehdrs(hdrs, enctbl)
-      for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 16384): # FIXME sz
+      #for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 16384): # FIXME sz
+      for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 1): # FIXME sz
         conn.sendall(http2.encode_frame(frame))
       #tosends = http2.encode_data(a.stream_id, 'Foo', 1, 16384) # FIXME sz
       tosends = http2.encode_data(a.stream_id, 'Foo', 1, 1) # FIXME sz

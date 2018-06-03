@@ -45,6 +45,13 @@ class frame_headers(frame):
     this.stream_id = 0x0
     this.headers = b''
 
+class frame_continuation(frame):
+  def __init__(this):
+    this.type = 0x9
+    this.flags = None
+    this.stream_id = 0x0
+    this.headers = b''
+
 class frame_push_promise(frame):
   def __init__(this):
     this.type = 0x5
@@ -233,6 +240,15 @@ def decode_headers(bs):
     pay = pay[:-padlen]
   f.headers = pay
   return f
+
+def decode_continuation(bs):
+  fraw = decode_frame(bs)
+  f = frame_continuation()
+  f.flags = fraw.flags
+  f.stream_id = fraw.stream_id
+  pay = fraw.payload
+  f.headers = pay
+  return f
   
       
 
@@ -250,6 +266,8 @@ def decode_any(s):
     return decode_push_promise(s)
   if f.type == 8:
     return decode_window_update(s)
+  if f.type == 9:
+    return decode_continuation(s)
   
 
 def encode_data(stream_id, data, end_stream, maxsz):
@@ -306,13 +324,18 @@ def encode_headers(stream_id, exclusive, dependency, weight, headers, end_stream
     else:
       f.type = 0x9
     f.flags = 0
-    end_headers = (len(headers) <= maxsz - 4)
+    overhead = 0
+    if first and priority:
+      overhead += 5
+    if first and pad_length:
+      overhead += 1 + pad_length
+    end_headers = (len(headers) <= maxsz - overhead)
     if end_headers:
       cur_headers = headers
       headers = b''
     else:
-      cur_headers = headers[:maxsz-4]
-      headers = headers[maxsz-4:]
+      cur_headers = headers[:maxsz-overhead]
+      headers = headers[maxsz-overhead:]
     if end_stream and first:
       f.flags |= 0x1
     if end_headers:

@@ -88,7 +88,9 @@ hdrs = hpack.encodehdrs([
 ], hdrsendtbl)
 end_stream = 1
 stream_id = 1
-conn.sendall(http2.encode_frame(http2.encode_headers(stream_id, 0, 0, 0, hdrs, end_stream, 0, 16384)[0]))
+#conn.sendall(http2.encode_frame(http2.encode_headers(stream_id, 0, 0, 0, hdrs, end_stream, 0, 16384)[0]))
+for frame in http2.encode_headers(stream_id, 0, 0, 0, hdrs, end_stream, 0, 1):
+  conn.sendall(http2.encode_frame(frame))
 #conn.sendall(http2.encode_frame(http2.encode_window_update(stream_id, 65535)))
 #conn.sendall(http2.encode_frame(http2.encode_window_update(0, 65535)))
 
@@ -104,6 +106,11 @@ while True:
     print "---", a.stream_id
     bs = hpack.bitstr(hdrsz, hdrtbl)
     bs.ar = bytearray(a.headers)
+    while a.flags & 0x4 != 0x4:
+      b = http2.recv_frame(conn)
+      a = http2.decode_any(b)
+      assert type(a) == http2.frame_continuation
+      bs.ar += a.headers
     print len(bs.ar)
     while bs.readidx < len(bs.ar):
       print hpack.hdrdecode(bs)
