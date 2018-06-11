@@ -10,11 +10,11 @@ print ssl.HAS_ALPN
 #hostname = "www.google.fi"
 #hostname = "nghttp2.org"
 
-hostname = "localhost"
-port = 8443
+#hostname = "localhost"
+#port = 8443
 
-#hostname = "www.google.fi"
-#port = 443
+hostname = "www.google.fi"
+port = 443
 
 context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
 context.check_hostname = False
@@ -80,7 +80,7 @@ conn.sendall(settings)
 
 hdrsendtbl = hpack.hdrtbl()
 
-hdrs = hpack.encodehdrs([
+hdrs = hpack.encodesz(0) + hpack.encodehdrs([
   (':method', 'GET'),
   (':scheme', 'https'),
   (':path', '/'),
@@ -124,7 +124,9 @@ while True:
       bs.ar += a.headers
     print len(bs.ar)
     while bs.readidx < len(bs.ar):
-      print hpack.hdrdecode(bs)
+      hdr = hpack.hdrdecode(bs)
+      if hdr:
+        print hdr
     print "---"
   elif type(a) == http2.frame_data:
     print "DATA", a.data[:80]

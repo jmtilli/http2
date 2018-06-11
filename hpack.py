@@ -492,6 +492,14 @@ def hdrencode(bs, k, v, hdrtbl):
   strencode(bs, k)
   strencode(bs, v)
 
+def encodesz(sz):
+  bs = bitstr(0, hdrtbl())
+  bs.ar.append(1<<5)
+  bs.N = 5
+  intencode(bs, sz)
+  bs.N = 8
+  return bytes(bs.ar)
+
 def encodehdrs(l, hdrtbl):
   bs = bitstr(0, hdrtbl)
   for k,v in l:
