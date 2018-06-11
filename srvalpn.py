@@ -143,7 +143,7 @@ while True:
         (':status', '200'),
         ('server', 'custom prototype'),
       ]
-      hdrstr = hpack.encodehdrs(hdrs, enctbl)
+      hdrstr = hpack.encodesz(0) + hpack.encodehdrs(hdrs, enctbl)
       #for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 16384): # FIXME sz
       #for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, 1): # FIXME sz
       for frame in http2.encode_headers(a.stream_id, 0, 0, 0, hdrstr, 0, 0, max_frame):
