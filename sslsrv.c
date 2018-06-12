@@ -23,17 +23,43 @@ int want_write;
 int want_write_isread;
 int want_read_iswrite;
 
+char expected_read[1024];
+int expected_read_pos;
+int expected_read_sz;
+
 int read_wrap(void)
 {
   int err;
   char buf[1025];
   printf("read_wrap\n");
   ERR_clear_error();
-  err = SSL_read(ssl, buf, sizeof(buf) - 1);
+  err = SSL_read(ssl, buf, expected_read_sz - expected_read_pos);
   if (err > 0)
   {
-    buf[err] = '\0';
-    printf("%s\n", buf);
+    if (memcmp(buf, expected_read + expected_read_pos, err) != 0)
+    {
+      printf("Nonexpected request\n");
+      exit(1);
+    }
+    expected_read_pos += err;
+    if (expected_read_pos == expected_read_sz)
+    {
+      char *response = 
+        "HTTP/1.1 301 Moved Permanently\r\n"
+        "Server: CloudFront\r\n"
+        "Date: Tue, 12 Jun 2018 13:00:29 GMT\r\n"
+        "Content-Type: text/html\r\n"
+        "Content-Length: 183\r\n"
+        "Connection: keep-alive\r\n"
+        "Location: https://localhost/\r\n"
+        "X-Cache: Redirect from cloudfront\r\n"
+        "Via: 1.1 773455c70e671b68419317a9c32aa999.cloudfront.net (CloudFront)\r\n"
+        "X-Amz-Cf-Id: B-PkOGnMM6ze07I9Im56LivwNk4ylWlGwx9EtCCDbV3H-o2DO5tTDA==\r\n"
+        "\r\n";
+      memcpy(writebuf, response, strlen(response));
+      to_write = strlen(response);
+      want_write = 1;
+    }
   }
   if (err < 0)
   {
@@ -115,40 +141,60 @@ void write_wrap(void)
 
 int main(int argc, char **argv)
 {
+  int srvfd;
   int connfd;
   struct sockfd;
   struct sockaddr_in sin;
   char *request;
+  int enable = 1;
 
   SSL_CTX *ctx;
 
-  connfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (connfd < 0)
+  srvfd = socket(AF_INET, SOCK_STREAM, 0);
+  if (srvfd < 0)
   {
     abort();
+  }
+
+  if (setsockopt(srvfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+  {
+    printf("setsockopt(SO_REUSEADDR) failed\n");
+    exit(1);
   }
 
   sin.sin_family = AF_INET;
   sin.sin_port = htons(8443);
-  memcpy(&sin.sin_addr, gethostbyname("localhost")->h_addr_list[0], 4);
+  sin.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  printf("%s\n", inet_ntoa(sin.sin_addr));
-
-  if (connect(connfd, (struct sockaddr*)&sin, sizeof(sin)) < 0)
+  if (bind(srvfd, (struct sockaddr*)&sin, sizeof(sin)) < 0)
   {
     abort();
   }
 
+  listen(srvfd, 5);
+  connfd = accept(srvfd, NULL, 0);
+
   SSL_library_init();
   SSL_load_error_strings();
 
-  ctx = SSL_CTX_new(TLS_client_method());
+  ctx = SSL_CTX_new(TLS_server_method());
   //SSL_CTX_set_mode(ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
   SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION | SSL_OP_NO_SSLv3 | SSL_OP_NO_SSLv2);
   SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 
+  SSL_CTX_set_ecdh_auto(ctx, 1);
+  /* Set the key and cert */
+  if (SSL_CTX_use_certificate_file(ctx, "cert.pem", SSL_FILETYPE_PEM) <= 0) {
+      ERR_print_errors_fp(stderr);
+      exit(EXIT_FAILURE);
+  }
+  if (SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM) <= 0 ) {
+      ERR_print_errors_fp(stderr);
+      exit(EXIT_FAILURE);
+  }
+
   ssl = SSL_new(ctx);
-  SSL_set_tlsext_host_name(ssl, "localhost");
+  //SSL_set_tlsext_host_name(ssl, "localhost");
   SSL_set_fd(ssl, connfd);
 
   //const char* const PREFERRED_CIPHERS = "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4";
@@ -161,21 +207,22 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  res = SSL_connect(ssl);
+  res = SSL_accept(ssl);
   if (res > 0)
   {
     printf("Connected\n");
   }
   else if (res == 0)
   {
-    printf("could not connect\n");
+    printf("could not accept\n");
   }
   else if (res < 0)
   {
     long error = SSL_get_error(ssl, res);
     char error_string[1024];
     ERR_error_string_n(error, error_string, sizeof(error_string));
-    printf("could not SSL_connect (returned -1): %s\n", error_string);
+    printf("could not SSL_accept (returned -1): %s\n", error_string);
+    ERR_print_errors_fp(stderr);
     exit(1);
   }
 
@@ -188,9 +235,9 @@ int main(int argc, char **argv)
   printf("Got here\n");
 
   request = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
-  to_write = strlen(request);
-  memcpy(writebuf, request, to_write);
-  want_write = 1;
+  expected_read_sz = strlen(request);
+  memcpy(expected_read, request, expected_read_sz);
+  expected_read_pos = 0;
 
   for (;;)
   {
