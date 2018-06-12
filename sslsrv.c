@@ -177,7 +177,11 @@ int main(int argc, char **argv)
   SSL_library_init();
   SSL_load_error_strings();
 
+#if OPENSSL_VERSION_NUMBER >= 0x1010000f
   ctx = SSL_CTX_new(TLS_server_method());
+#else
+  ctx = SSL_CTX_new(TLSv1_2_server_method());
+#endif
   //SSL_CTX_set_mode(ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
   SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION | SSL_OP_NO_SSLv3 | SSL_OP_NO_SSLv2);
   SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
