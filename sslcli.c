@@ -144,6 +144,7 @@ int main(int argc, char **argv)
 
 #if OPENSSL_VERSION_NUMBER >= 0x1010000f
   ctx = SSL_CTX_new(TLS_client_method());
+  SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
 #else
   ctx = SSL_CTX_new(TLSv1_2_client_method());
 #endif
